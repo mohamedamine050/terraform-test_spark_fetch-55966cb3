@@ -198,3 +198,112 @@ resource "aws_glue_job" "api_to_s3" {
     aws_iam_role_policy_attachment.glue_admin
   ]
 }
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IAM — Lambda
+# ─────────────────────────────────────────────────────────────────────────────
+resource "aws_iam_role" "lambda" {
+  name = "lambda-role-${random_string.suffix.result}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda" {
+  name = "lambda-policy-${random_string.suffix.result}"
+  role = aws_iam_role.lambda.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "S3ReadLambdaZip"
+        Effect = "Allow"
+        Action = ["s3:GetObject"]
+        Resource = "${aws_s3_bucket.scripts.arn}/lambda/*"
+      },
+      {
+        Sid    = "S3WriteOutput"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.output.arn,
+          "${aws_s3_bucket.output.arn}/*"
+        ]
+      },
+      {
+        Sid    = "Logs"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Lambda Function
+# ─────────────────────────────────────────────────────────────────────────────
+resource "local_file" "lambda_placeholder" {
+  filename = "${path.module}/lambda_function.py"
+  content  = <<-EOT
+def lambda_handler(event, context):
+    print("Hello from Lambda placeholder")
+    return {
+        "statusCode": 200,
+        "body": "placeholder - will be replaced by CD pipeline"
+    }
+EOT
+}
+
+data "archive_file" "lambda_zip" {
+  type        = "zip"
+  source_file = local_file.lambda_placeholder.filename
+  output_path = "${path.module}/lambda_function.zip"
+  depends_on  = [local_file.lambda_placeholder]
+}
+
+resource "aws_s3_object" "lambda_zip" {
+  bucket = aws_s3_bucket.scripts.id
+  key    = "lambda/lambda_function.zip"
+  source = data.archive_file.lambda_zip.output_path
+  etag   = data.archive_file.lambda_zip.output_md5
+
+  depends_on = [data.archive_file.lambda_zip]
+}
+
+resource "aws_lambda_function" "api_fetcher" {
+  s3_bucket     = aws_s3_bucket.scripts.bucket
+  s3_key        = "lambda/lambda_function.zip"
+  function_name = "api-fetcher-${random_string.suffix.result}"
+  role          = aws_iam_role.lambda.arn
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.12"
+  timeout       = 60
+
+  depends_on = [
+    aws_s3_object.lambda_zip,
+    aws_iam_role_policy.lambda,
+    aws_iam_role_policy_attachment.lambda_s3_full_access
+  ]
+}
+resource "aws_iam_role_policy_attachment" "lambda_s3_full_access" {
+  role       = aws_iam_role.lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}

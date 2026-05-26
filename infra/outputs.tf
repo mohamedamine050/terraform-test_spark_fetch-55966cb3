@@ -65,3 +65,19 @@ output "glue_test_script_s3_uri" {
 output "external_api_endpoint" {
   value = var.external_api_endpoint
 }
+
+
+output "lambda_function_name" {
+  description = "Nom de la fonction Lambda"
+  value       = aws_lambda_function.api_fetcher.function_name
+}
+
+output "lambda_function_arn" {
+  description = "ARN de la fonction Lambda"
+  value       = aws_lambda_function.api_fetcher.arn
+}
+
+output "lambda_zip_s3_uri" {
+  description = "URI S3 du zip Lambda"
+  value       = "s3://${aws_s3_bucket.scripts.bucket}/lambda/lambda_function.zip"
+}
