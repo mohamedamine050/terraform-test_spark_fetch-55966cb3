@@ -79,5 +79,5 @@ output "lambda_function_arn" {
 
 output "lambda_zip_s3_uri" {
   description = "URI S3 du zip Lambda"
-  value       = "s3://${aws_s3_bucket.scripts.bucket}/lambda/lambda_function.zip"
+  value       = "s3://${aws_s3_bucket.glue_scripts.bucket}/lambda/lambda_function.zip"
 }

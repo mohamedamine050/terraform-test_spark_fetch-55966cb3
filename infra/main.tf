@@ -228,7 +228,7 @@ resource "aws_iam_role_policy" "lambda" {
         Sid    = "S3ReadLambdaZip"
         Effect = "Allow"
         Action = ["s3:GetObject"]
-        Resource = "${aws_s3_bucket.scripts.arn}/lambda/*"
+        Resource = "${aws_s3_bucket.glue_scripts.arn}/lambda/*"
       },
       {
         Sid    = "S3WriteOutput"
@@ -239,8 +239,8 @@ resource "aws_iam_role_policy" "lambda" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.output.arn,
-          "${aws_s3_bucket.output.arn}/*"
+          aws_s3_bucket.output_data.arn,
+          "${aws_s3_bucket.output_data.arn}/*"
         ]
       },
       {
@@ -280,7 +280,7 @@ data "archive_file" "lambda_zip" {
 }
 
 resource "aws_s3_object" "lambda_zip" {
-  bucket = aws_s3_bucket.scripts.id
+  bucket = aws_s3_bucket.glue_scripts.id
   key    = "lambda/lambda_function.zip"
   source = data.archive_file.lambda_zip.output_path
   etag   = data.archive_file.lambda_zip.output_md5
@@ -289,7 +289,7 @@ resource "aws_s3_object" "lambda_zip" {
 }
 
 resource "aws_lambda_function" "api_fetcher" {
-  s3_bucket     = aws_s3_bucket.scripts.bucket
+  s3_bucket     = aws_s3_bucket.glue_scripts.bucket
   s3_key        = "lambda/lambda_function.zip"
   function_name = "api-fetcher-${random_string.suffix.result}"
   role          = aws_iam_role.lambda.arn
